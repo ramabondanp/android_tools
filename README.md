@@ -12,6 +12,7 @@ This repository is a grab bag of binaries for unpacking and repacking Android OT
 | --- | --- |
 | `brotli` | Google Brotli compressor/decompressor; required when OTA payloads ship Brotli-compressed blobs. |
 | `extract.erofs` | Extracts files from an EROFS image. Helpful for inspecting dynamic partitions in modern Android builds. |
+| `lpunpack` | Splits a `super.img` (Logical Partitions image) into its constituent partition blobs. |
 | `mkfs.erofs` | Builds an EROFS filesystem from an input directory tree. |
 | `ota_extractor` | Pulls partitions and payload metadata out of `payload.bin` archives. |
 | `simg2img` | Converts Android sparse images (e.g., `system.img`) into raw ext images for mounting. |
