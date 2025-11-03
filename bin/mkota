@@ -31,10 +31,10 @@ PRINT_UPDATE_BINARY=0
 declare -a POSITIONAL_ARGS=()
 
 # Partition lists
-SUPER_PARTITIONS=("system" "vendor" "product" "system_ext" "vendor_dlkm" "odm_dlkm")
+SUPER_PARTITIONS=("system" "vendor" "product" "system_dlkm" "system_ext" "vendor_dlkm" "odm_dlkm")
 SUPER_TR_PARTITIONS=("tr_carrier" "tr_company" "tr_mi" "tr_overlayfs" "tr_preload" "tr_product" "tr_region" "tr_theme")
-SYSTEMS=("boot" "dtbo" "vendor_boot" "vbmeta" "vbmeta_system" "vbmeta_vendor")
-FIRMWARES=("apusys" "cam_vpu1" "cam_vpu2" "cam_vpu3" "ccu" "dpm" "gpueb" "gz" "lk" "logo" "mcf_ota" "mcupm" "md1img" "mvpu_algo" "pi_img" "preloader_raw" "scp" "spmfw" "sspm" "tee" "tkv" "vcp")
+SYSTEMS=("boot" "dtbo" "init_boot" "vendor_boot" "vbmeta" "vbmeta_system" "vbmeta_vendor")
+FIRMWARES=("apusys" "cam_vpu1" "cam_vpu2" "cam_vpu3" "ccu" "connsys_bt" "dpm" "gpueb" "gz" "lk" "logo" "mcf_ota" "mcupm" "md1img" "mvpu_algo" "pi_img" "preloader_raw" "scp" "spmfw" "sspm" "tee" "tkv" "vcp")
 
 # Log function
 log() {
