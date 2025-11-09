@@ -291,11 +291,12 @@ checkDevice() {
     myDevice=$(getprop ro.product.name)
 EOF
 
-    # Add device code verification
-    echo "    romDevice=\"$CODENAME\"" >> "$SCRIPT_FILE"
-
-    # Continue with the device verification logic
-    cat >> "$SCRIPT_FILE" <<'EOF'
+    # Add device code verification block and subsequent helpers
+    {
+        cat <<EOF
+    romDevice="$CODENAME"
+EOF
+        cat <<'EOF'
     if [ "$myDevice" != "$romDevice" ]; then
         ui_print "- Device code verification failed. Please double-check if this package matches your device model."
         ui_print "- Flashing the wrong package may cause bricking, and you will bear the consequences. Do you want to continue flashing?"
@@ -307,6 +308,8 @@ EOF
         fi
     fi
 }
+EOF
+        cat <<'EOF'
 
 checkExit() {
     status=$?
@@ -372,8 +375,7 @@ chmod -R 0755 /tmp
 
 ui_print " "
 EOF
-
-    cat >> "$SCRIPT_FILE" <<EOF
+        cat <<EOF
 ui_print "============================================"
 ui_print "██████     ██████     ██████  "
 ui_print "██   ██    ██   ██    ██   ██ "
@@ -386,6 +388,7 @@ ui_print "Device : $DEVICE"
 ui_print "Version: $FIRMWARE"
 ui_print "============================================"
 EOF
+    } >> "$SCRIPT_FILE"
 
     # Add firmware flashing section
     cat >> "$SCRIPT_FILE" <<'EOF'
@@ -402,8 +405,10 @@ EOF
     for firmware in "${FIRMWARES[@]}"; do
         if [[ -f "${WORK_DIR}/${firmware}.img" ]]; then
             if (( firmware_present == 0 )); then
-                echo "ui_print \" \"" >> "$SCRIPT_FILE"
-                echo "ui_print \"Patching firmware to both slot...\"" >> "$SCRIPT_FILE"
+                {
+                    echo "ui_print \" \""
+                    echo "ui_print \"Patching firmware to both slot...\""
+                } >> "$SCRIPT_FILE"
                 firmware_present=1
             fi
             echo "flash_firmware_both_slots \"firmware/${firmware}.img\" \"${firmware}\"" >> "$SCRIPT_FILE"
@@ -446,17 +451,19 @@ EOF
     fi
 
     if ((${#partition_specs[@]} > 0)); then
-        echo >> "$SCRIPT_FILE"
-        echo "# Create new partitions" >> "$SCRIPT_FILE"
+        {
+            echo
+            echo "# Create new partitions"
+        } >> "$SCRIPT_FILE"
 
         {
-            printf 'case "$SLOT" in\n'
-            printf '    "_a") OTHER_SLOT="_b" ;;\n'
-            printf '    "_b") OTHER_SLOT="_a" ;;\n'
-            printf '    *) ui_print "- Unknown boot slot: $SLOT"; exit 1 ;;\n'
-            printf 'esac\n'
+            printf "case \"\$SLOT\" in\n"
+            printf "    \"_a\") OTHER_SLOT=\"_b\" ;;\n"
+            printf "    \"_b\") OTHER_SLOT=\"_a\" ;;\n"
+            printf "    *) ui_print \"- Unknown boot slot: \$SLOT\"; exit 1 ;;\n"
+            printf "esac\n"
             printf '\n'
-            printf 'create_partitions_for_slot "$SLOT" "$OTHER_SLOT"'
+            printf "create_partitions_for_slot \"\$SLOT\" \"\$OTHER_SLOT\""
             for spec in "${partition_specs[@]}"; do
                 printf ' \\%b"%s"' '\n        ' "$spec"
             done
@@ -465,8 +472,10 @@ EOF
     fi
 
     if ((${#partition_names[@]} > 0)); then
-        echo >> "$SCRIPT_FILE"
-        echo "# Map all partitions" >> "$SCRIPT_FILE"
+        {
+            echo
+            echo "# Map all partitions"
+        } >> "$SCRIPT_FILE"
         {
             printf 'process_partitions_for_slots "map"'
             for partition in "${partition_names[@]}"; do
@@ -477,8 +486,11 @@ EOF
     fi
 
     # Add system flashing section
-    echo -e "\nui_print \" \"" >> "$SCRIPT_FILE"
-    echo "ui_print \"Patching system...\"" >> "$SCRIPT_FILE"
+    {
+        printf '\n'
+        echo "ui_print \" \""
+        echo "ui_print \"Patching system...\""
+    } >> "$SCRIPT_FILE"
 
     # Add system partition flashing commands using the new function
     for system in "${SYSTEMS[@]}"; do
@@ -495,7 +507,10 @@ EOF
     done
 
     if ((${#partition_names[@]} > 0)); then
-        echo -e "\n# Final unmapping and mapping to ensure proper mounting" >> "$SCRIPT_FILE"
+        {
+            printf '\n'
+            echo "# Final unmapping and mapping to ensure proper mounting"
+        } >> "$SCRIPT_FILE"
         {
             printf 'process_partitions_for_slots "unmap_map"'
             for partition in "${partition_names[@]}"; do
@@ -519,8 +534,12 @@ print_update_binary() {
     [[ -n "$TMP_DIR" ]] || handle_error "TMP_DIR must be provided via argument or environment variable"
     WORK_DIR="$(resolve_directory "$WORK_DIR")"
     SCRIPT_FOLDER=""
-    SCRIPT_FILE="/dev/stdout"
+    local tmp_script
+    tmp_script="$(mktemp)" || handle_error "Failed to create temporary script file"
+    SCRIPT_FILE="$tmp_script"
     generate_update_binary
+    cat "$SCRIPT_FILE"
+    rm -f "$SCRIPT_FILE"
 }
 
 # Main execution
