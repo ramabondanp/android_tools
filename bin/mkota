@@ -375,13 +375,11 @@ EOF
 
     cat >> "$SCRIPT_FILE" <<EOF
 ui_print "============================================"
-ui_print "RRRRR   BBBBB   PPPPP"
-ui_print "R   RR  B   BB  P   PP"
-ui_print "R   RR  B   BB  P   PP"
-ui_print "RRRRR   BBBBB   PPPPP"
-ui_print "R RR    B   BB  P"
-ui_print "R  RR   B   BB  P"
-ui_print "R   RR  BBBBB   P"
+ui_print "██████     ██████     ██████  "
+ui_print "██   ██    ██   ██    ██   ██ "
+ui_print "██████     ██████     ██████  "
+ui_print "██   ██    ██   ██    ██      "
+ui_print "██   ██ ██ ██████  ██ ██      "
 ui_print " "
 ui_print "Flashable ROM by ramabondanp"
 ui_print "Device : $DEVICE"
