@@ -297,7 +297,7 @@ EOF
     romDevice="$CODENAME"
 EOF
         cat <<'EOF'
-    if [ "$myDevice" != "$romDevice" ]; then
+    if [ -z "$(echo "$myDevice" | grep "$romDevice")" ]; then
         ui_print "- Device code verification failed. Please double-check if this package matches your device model."
         ui_print "- Flashing the wrong package may cause bricking, and you will bear the consequences. Do you want to continue flashing?"
         if ! getVolumeKey; then

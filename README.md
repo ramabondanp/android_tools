@@ -37,21 +37,21 @@ You must provide the device metadata (device name, firmware string, codename) us
 ```bash
 # One-off overrides
 mkota --device "Infinix GT 20 Pro" \
-          --firmware "X6871-15.1.2.129(OP001PF001AZ)PORT" \
-          --codename "X6871-OP" \
+          --firmware "X6871-15.1.2.145SP02(OP001PF001AZ)" \
+          --codename "X6871" \
           /path/to/images /tmp/mkota
 
 # Environment variables
 MKOTA_DEVICE="Infinix GT 20 Pro" \
-MKOTA_FIRMWARE="X6871-15.1.2.129(OP001PF001AZ)PORT" \
-MKOTA_CODENAME="X6871-OP" \
+MKOTA_FIRMWARE="X6871-15.1.2.145SP02(OP001PF001AZ)" \
+MKOTA_CODENAME="X6871" \
 mkota /path/to/images /tmp/mkota
 
 # Config file (mkota.conf in the CWD, script directory, or ~/.config/mkota/config)
 cat <<'EOF' > mkota.conf
 DEVICE="Infinix GT 20 Pro"
-FIRMWARE="X6871-15.1.2.129(OP001PF001AZ)PORT"
-CODENAME="X6871-OP"
+FIRMWARE="X6871-15.1.2.145SP02(OP001PF001AZ)"
+CODENAME="X6871"
 EOF
 mkota /path/to/images /tmp/mkota
 ```
