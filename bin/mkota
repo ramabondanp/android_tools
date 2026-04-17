@@ -558,7 +558,6 @@ main() {
 
     # Convert and compress partition images
     log "INFO" "Converting and compressing partition images"
-    local convert_pids=()
     for partition in "${SUPER_PARTITIONS[@]}" "${SUPER_TR_PARTITIONS[@]}"; do
         if [[ -f "${WORK_DIR}/${partition}.img" ]]; then
             # We compress sequentially but background the entire compression loop
