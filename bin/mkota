@@ -77,7 +77,7 @@ EOF
 
 # Check for required tools
 check_dependencies() {
-    local deps=("zip" "zstd" "du" "cut")
+    local deps=("zip" "zstd" "stat")
     for dep in "${deps[@]}"; do
         command -v "$dep" >/dev/null 2>&1 || handle_error "$dep is required but not installed. Please install it and try again."
     done
@@ -212,16 +212,29 @@ resolve_directory() {
     (cd -- "$dir" && pwd -P) || handle_error "Failed to resolve path for: $dir"
 }
 
+# Function to perform fast file copy using hardlinks if possible
+fast_copy() {
+    local src="$1"
+    local dest="$2"
+    if [[ -d "$dest" ]]; then
+        dest="${dest}/$(basename "$src")"
+    fi
+    ln "$src" "$dest" 2>/dev/null || cp "$src" "$dest"
+}
+
 # Function to convert and compress partition images
 convert_partition() {
     local partition="$1"
     log "INFO" "Processing ${partition}.img"
-    zstd -T0 "${WORK_DIR}/${partition}.img" -o "$TMP_DIR/${partition}.img.zst" > /dev/null 2>&1 || handle_error "Failed to convert ${partition}.img"
+    if ! zstd -T0 "${WORK_DIR}/${partition}.img" -o "$TMP_DIR/${partition}.img.zst" > /dev/null 2>&1; then
+        log "ERROR" "Failed to convert ${partition}.img"
+        return 1
+    fi
 }
 
-# Function to get image size
+# Function to get image size efficiently
 get_img_size() {
-    du -b "$1" | cut -f1
+    stat -c %s "$1" 2>/dev/null || stat -f %z "$1" 2>/dev/null
 }
 
 generate_update_binary() {
@@ -229,8 +242,9 @@ generate_update_binary() {
         mkdir -p "$SCRIPT_FOLDER"
     fi
 
-    # Create the header section of the update script
-    cat > "$SCRIPT_FILE" <<'EOF'
+    # Create the complete update script efficiently
+    {
+        cat <<'EOF'
 #!/sbin/sh
 
 OUTFD=/proc/self/fd/$2
@@ -291,11 +305,10 @@ checkDevice() {
     myDevice=$(getprop ro.product.name)
 EOF
 
-    # Add device code verification block and subsequent helpers
-    {
         cat <<EOF
     romDevice="$CODENAME"
 EOF
+
         cat <<'EOF'
     if [ -z "$(echo "$myDevice" | grep "$romDevice")" ]; then
         ui_print "- Device code verification failed. Please double-check if this package matches your device model."
@@ -308,8 +321,6 @@ EOF
         fi
     fi
 }
-EOF
-        cat <<'EOF'
 
 checkExit() {
     status=$?
@@ -375,6 +386,7 @@ chmod -R 0755 /tmp
 
 ui_print " "
 EOF
+
         cat <<EOF
 ui_print "============================================"
 ui_print "██████     ██████     ██████  "
@@ -388,10 +400,8 @@ ui_print "Device : $DEVICE"
 ui_print "Version: $FIRMWARE"
 ui_print "============================================"
 EOF
-    } >> "$SCRIPT_FILE"
 
-    # Add firmware flashing section
-    cat >> "$SCRIPT_FILE" <<'EOF'
+        cat <<'EOF'
 
 checkDevice
 
@@ -400,23 +410,19 @@ unmountPartitions
 # Firmware
 EOF
 
-    # Add firmware partition flashing commands using the new function
-    local firmware_present=0
-    for firmware in "${FIRMWARES[@]}"; do
-        if [[ -f "${WORK_DIR}/${firmware}.img" ]]; then
-            if (( firmware_present == 0 )); then
-                {
+        local firmware_present=0
+        for firmware in "${FIRMWARES[@]}"; do
+            if [[ -f "${WORK_DIR}/${firmware}.img" ]]; then
+                if (( firmware_present == 0 )); then
                     echo "ui_print \" \""
                     echo "ui_print \"Patching firmware to both slot...\""
-                } >> "$SCRIPT_FILE"
-                firmware_present=1
+                    firmware_present=1
+                fi
+                echo "flash_firmware_both_slots \"firmware/${firmware}.img\" \"${firmware}\""
             fi
-            echo "flash_firmware_both_slots \"firmware/${firmware}.img\" \"${firmware}\"" >> "$SCRIPT_FILE"
-        fi
-    done
+        done
 
-    # Add logical partition handling
-    cat >> "$SCRIPT_FILE" <<'EOF'
+        cat <<'EOF'
 
 ui_print " "
 SLOT=$(getprop ro.boot.slot_suffix)
@@ -428,102 +434,83 @@ checkExit
 
 EOF
 
-    # Build arrays of partitions to process with their sizes
-    partition_names=()
-    partition_specs=()
-    for partition in "${SUPER_PARTITIONS[@]}" "${SUPER_TR_PARTITIONS[@]}"; do
-        if [[ -f "${WORK_DIR}/${partition}.img" ]]; then
-            partition_names+=("${partition}")
-            size=$(get_img_size "${WORK_DIR}/${partition}.img")
-            partition_specs+=("${partition}:${size}")
-        fi
-    done
+        # Build arrays of partitions to process with their sizes
+        local partition_names=()
+        local partition_specs=()
+        for partition in "${SUPER_PARTITIONS[@]}" "${SUPER_TR_PARTITIONS[@]}"; do
+            if [[ -f "${WORK_DIR}/${partition}.img" ]]; then
+                partition_names+=("${partition}")
+                local size
+                size=$(get_img_size "${WORK_DIR}/${partition}.img")
+                partition_specs+=("${partition}:${size}")
+            fi
+        done
 
-    if ((${#partition_names[@]} > 0)); then
-        echo "# Clear existing partitions" >> "$SCRIPT_FILE"
-        {
+        if ((${#partition_names[@]} > 0)); then
+            echo "# Clear existing partitions"
             printf 'process_partitions_for_slots "clear"'
             for partition in "${partition_names[@]}"; do
-                printf ' \\%b"%s"' '\n        ' "$partition"
+                printf ' \\\n        "%s"' "$partition"
             done
             printf '\n'
-        } >> "$SCRIPT_FILE"
-    fi
+        fi
 
-    if ((${#partition_specs[@]} > 0)); then
-        {
+        if ((${#partition_specs[@]} > 0)); then
             echo
             echo "# Create new partitions"
-        } >> "$SCRIPT_FILE"
-
-        {
             printf "case \"\$SLOT\" in\n"
             printf "    \"_a\") OTHER_SLOT=\"_b\" ;;\n"
             printf "    \"_b\") OTHER_SLOT=\"_a\" ;;\n"
             printf "    *) ui_print \"- Unknown boot slot: \$SLOT\"; exit 1 ;;\n"
-            printf "esac\n"
-            printf '\n'
+            printf "esac\n\n"
             printf "create_partitions_for_slot \"\$SLOT\" \"\$OTHER_SLOT\""
             for spec in "${partition_specs[@]}"; do
-                printf ' \\%b"%s"' '\n        ' "$spec"
+                printf ' \\\n        "%s"' "$spec"
             done
             printf '\n'
-        } >> "$SCRIPT_FILE"
-    fi
+        fi
 
-    if ((${#partition_names[@]} > 0)); then
-        {
+        if ((${#partition_names[@]} > 0)); then
             echo
             echo "# Map all partitions"
-        } >> "$SCRIPT_FILE"
-        {
             printf 'process_partitions_for_slots "map"'
             for partition in "${partition_names[@]}"; do
-                printf ' \\%b"%s"' '\n        ' "$partition"
+                printf ' \\\n        "%s"' "$partition"
             done
             printf '\n'
-        } >> "$SCRIPT_FILE"
-    fi
+        fi
 
-    # Add system flashing section
-    {
         printf '\n'
         echo "ui_print \" \""
         echo "ui_print \"Patching system...\""
-    } >> "$SCRIPT_FILE"
 
-    # Add system partition flashing commands using the new function
-    for system in "${SYSTEMS[@]}"; do
-        if [[ -f "${WORK_DIR}/${system}.img" ]]; then
-            echo "flash_firmware_both_slots \"${system}.img\" \"${system}\"" >> "$SCRIPT_FILE"
-        fi
-    done
+        for system in "${SYSTEMS[@]}"; do
+            if [[ -f "${WORK_DIR}/${system}.img" ]]; then
+                echo "flash_firmware_both_slots \"${system}.img\" \"${system}\""
+            fi
+        done
 
-    # Add zstd compressed partition flashing commands using the new function
-    for partition in "${SUPER_PARTITIONS[@]}" "${SUPER_TR_PARTITIONS[@]}"; do
-        if [[ -f "${WORK_DIR}/${partition}.img" ]]; then
-            echo "flash_partition_zstd \"${partition}.img.zst\" \"/dev/block/mapper/${partition}\$SLOT\"" >> "$SCRIPT_FILE"
-        fi
-    done
+        for partition in "${SUPER_PARTITIONS[@]}" "${SUPER_TR_PARTITIONS[@]}"; do
+            if [[ -f "${WORK_DIR}/${partition}.img" ]]; then
+                echo "flash_partition_zstd \"${partition}.img.zst\" \"/dev/block/mapper/${partition}\$SLOT\""
+            fi
+        done
 
-    if ((${#partition_names[@]} > 0)); then
-        {
+        if ((${#partition_names[@]} > 0)); then
             printf '\n'
             echo "# Final unmapping and mapping to ensure proper mounting"
-        } >> "$SCRIPT_FILE"
-        {
             printf 'process_partitions_for_slots "unmap_map"'
             for partition in "${partition_names[@]}"; do
-                printf ' \\%b"%s"' '\n        ' "$partition"
+                printf ' \\\n        "%s"' "$partition"
             done
             printf '\n'
-        } >> "$SCRIPT_FILE"
-    fi
+        fi
 
-    cat >> "$SCRIPT_FILE" <<EOF
+        cat <<EOF
 
 exit 0
 EOF
+    } > "$SCRIPT_FILE"
 }
 
 print_update_binary() {
@@ -575,15 +562,21 @@ main() {
 
     # Convert and compress partition images
     log "INFO" "Converting and compressing partition images"
+    local convert_pids=()
     for partition in "${SUPER_PARTITIONS[@]}" "${SUPER_TR_PARTITIONS[@]}"; do
-        [[ -f "${WORK_DIR}/${partition}.img" ]] && convert_partition "$partition"
-    done
+        if [[ -f "${WORK_DIR}/${partition}.img" ]]; then
+            # We compress sequentially but background the entire compression loop
+            # so we can parallelize with file copying below.
+            convert_partition "$partition" || handle_error "Failed to compress $partition"
+        fi
+    done &
+    local compression_pid=$!
 
     # Copy zstd binary
     # Use bundled arm64 zstd binary
     local zstd_source="${SCRIPT_DIR}/zstd-arm64"
     [[ -f "$zstd_source" ]] || handle_error "Bundled zstd-arm64 binary not found"
-    cp "$zstd_source" "$TMP_DIR/META-INF/zstd" || handle_error "Failed to copy zstd binary"
+    fast_copy "$zstd_source" "$TMP_DIR/META-INF/zstd" || handle_error "Failed to copy zstd binary"
     chmod 0755 "$TMP_DIR/META-INF/zstd" || handle_error "Failed to set permissions on zstd binary"
 
     # Copy firmware images
@@ -595,7 +588,7 @@ main() {
                 mkdir -p "$FIRMWARE_DIR" || handle_error "Failed to create firmware directory"
                 firmware_dir_ready=1
             fi
-            cp "${WORK_DIR}/${firmware}.img" "$FIRMWARE_DIR" || handle_error "Failed to copy ${firmware}.img"
+            fast_copy "${WORK_DIR}/${firmware}.img" "$FIRMWARE_DIR" || handle_error "Failed to copy ${firmware}.img"
             log "SUCCESS" "Copied ${firmware}.img"
         else
             log "WARNING" "${firmware}.img not found, skipping"
@@ -606,12 +599,15 @@ main() {
     log "INFO" "Copying system images"
     for system in "${SYSTEMS[@]}"; do
         if [[ -f "${WORK_DIR}/${system}.img" ]]; then
-            cp "${WORK_DIR}/${system}.img" "$TMP_DIR" || handle_error "Failed to copy ${system}.img"
+            fast_copy "${WORK_DIR}/${system}.img" "$TMP_DIR" || handle_error "Failed to copy ${system}.img"
             log "SUCCESS" "Copied ${system}.img"
         else
             log "WARNING" "${system}.img not found, skipping"
         fi
     done
+
+    # Wait for background compressions to finish
+    wait "$compression_pid" || handle_error "Partition compression failed"
 
     # Create final ROM zip
     log "INFO" "Creating final ROM zip"
