@@ -407,6 +407,14 @@ checkDevice
 
 unmountPartitions
 
+ui_print " "
+SLOT=$(getprop ro.boot.slot_suffix)
+ui_print "Checking boot slot... ${SLOT}"
+
+# Remap
+lptools clear-cow
+checkExit
+
 # Firmware
 EOF
 
@@ -421,18 +429,6 @@ EOF
                 echo "flash_firmware_both_slots \"firmware/${firmware}.img\" \"${firmware}\""
             fi
         done
-
-        cat <<'EOF'
-
-ui_print " "
-SLOT=$(getprop ro.boot.slot_suffix)
-ui_print "Checking boot slot... ${SLOT}"
-
-# Remap
-lptools clear-cow
-checkExit
-
-EOF
 
         # Build arrays of partitions to process with their sizes
         local partition_names=()
