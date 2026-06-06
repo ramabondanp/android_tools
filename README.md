@@ -15,6 +15,7 @@ This repository is a grab bag of binaries for unpacking and repacking Android OT
 | `lpunpack` | Splits a `super.img` (Logical Partitions image) into its constituent partition blobs. |
 | `mkfs.erofs` | Builds an EROFS filesystem from an input directory tree. |
 | `ota_extractor` | Pulls partitions and payload metadata out of `payload.bin` archives. |
+| `payload-extract` | Extracts partition images, lists contents, and validates Android OTA `payload.bin` payloads (supports local files, zip archives, and HTTP URLs). |
 | `simg2img` | Converts Android sparse images (e.g., `system.img`) into raw ext images for mounting. |
 | `zstd` | Zstandard compressor/decompressor used by recent OTAs and system partitions. |
 
