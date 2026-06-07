@@ -51,11 +51,12 @@ declare -a CLEANUP_DIRS=()
 # ---------------------------------------------------------------------------
 SUPER_PARTITIONS=(
     "system" "vendor" "product"
-    "system_dlkm" "system_ext" "vendor_dlkm" "odm_dlkm"
+    "system_dlkm" "system_ext" "vendor_dlkm" "odm_dlkm" "odm"
 )
 SUPER_TR_PARTITIONS=(
     "tr_carrier" "tr_company" "tr_mi" "tr_overlayfs"
     "tr_preload" "tr_product" "tr_region" "tr_theme"
+    "tr_manifest" "tr_misc"
 )
 SYSTEMS=(
     "boot" "dtbo" "init_boot"
@@ -395,8 +396,9 @@ checkExit() {
 }
 
 unmountPartitions() {
-    umount /system /system_root /vendor /product /system_ext /vendor_dlkm /odm_dlkm \
-           /tr_carrier /tr_company /tr_mi /tr_preload /tr_product /tr_region /tr_theme 2>/dev/null
+    umount /system /system_root /vendor /product /system_ext /vendor_dlkm /odm_dlkm /odm \
+           /tr_carrier /tr_company /tr_mi /tr_preload /tr_product /tr_region /tr_theme \
+           /tr_manifest /tr_misc 2>/dev/null
 }
 
 # Function to handle logical partition operations
