@@ -275,7 +275,7 @@ fast_copy() {
 convert_partition() {
     local partition="$1"
     log "INFO" "Processing ${partition}.img"
-    if ! zstd -T0 "${WORK_DIR}/${partition}.img" -o "$TMP_DIR/${partition}.img.zst"; then
+    if ! zstd -T0 -q "${WORK_DIR}/${partition}.img" -o "$TMP_DIR/${partition}.img.zst"; then
         log "ERROR" "Failed to convert ${partition}.img"
         return 1
     fi
